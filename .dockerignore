@@ -8,6 +8,7 @@
 /database/*.sqlite
 /database/*.sqlite-*
 /vendor
+/bootstrap/cache/*.php
 .env
 .env.*
 !.env.example
