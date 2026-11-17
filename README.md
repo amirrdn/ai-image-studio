@@ -1,66 +1,109 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Pixelforge Studio — AI Image Generation Workspace
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+A full-stack AI image generation workspace built with **Laravel 11**, **Vue 3**, **Inertia.js**, and **Tailwind CSS**, integrated with the **Pixelforge API**. Every monetary calculation uses **PHP BCMath** (and integer-scaled `BigInt` on the frontend) with 9-decimal precision (`DECIMAL(18, 9)`) to avoid floating-point drift.
 
-## About Laravel
+---
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+## Key Features
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+- **Real-Time Token & Cost Estimation**: Debounced live pricing preview via `POST /generations/estimate` using cached rates from `GET /v1/pricing` (5-minute TTL with documented fallback rates), supporting `low`, `medium`, and `high` quality tiers with a transparent **25% service markup** and reasoning token ranges.
+- **Credit Wallet & Instant Top-Ups**: New users start with **$10.00** in free studio credits, validated before job submission against the maximum estimated user cost, with instant simulated top-ups (`$5.00`, `$10.00`, `$25.00`).
+- **Text-to-Image & Reference Images**: Supports `1024x1024`, `1536x1024`, and `1024x1536` aspect ratios plus up to 4 optional reference image URLs (`reference_images`), along with quick-insert Pixelforge testing directive tags (`[slow]`, `[fail]`, `[duplicate]`, `[blocked]`, `[overloaded]`, `[succeed]`).
+- **HMAC-Verified Webhooks & Live Polling Fallback**:
+  - `POST /webhooks/pixelforge` verifies `Pixelforge-Signature` (`t=<timestamp>,v1=<hmac>`) in constant time with a 300-second replay window.
+  - Idempotent event deduplication (`webhook_events`), row-level locking (`lockForUpdate()`), strict state transitions (`pending` → `queued` → `processing` → `succeeded`/`failed`), and race-condition resolution via `metadata.local_generation_id`.
+  - Automatic frontend polling (`POST /generations/{generation}/sync`) every 4 seconds for active jobs plus a manual **Sync Status** action.
+- **Zero Charge on Failed Generations**: Failed or rejected jobs always settle at `$0.000000000` (`actual_user_cost = 0`) and never deduct user credits.
+- **Operator Financial & Reconciliation Report**: Accessible at `GET /admin/report` (the first registered user is automatically assigned `is_admin = true`), aggregating user spend, provider cost, and net profit daily and per user, with live reconciliation against Pixelforge `GET /v1/usage`.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+---
 
-## Learning Laravel
+## Tech Stack
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+- **Backend**: Laravel 11, PHP 8.2+ (`bcmath`, `pdo_sqlite`), Laravel Breeze
+- **Frontend**: Vue 3, Inertia.js v2, Tailwind CSS, Vite
+- **Precision & Ledger**: PHP `bcmath` (`scale = 9`) & `DECIMAL(18, 9)` columns
+- **Database**: SQLite (default) or MySQL / PostgreSQL
+- **Deployment**: Multi-stage `Dockerfile` (Composer + Node 20 Vite build + PHP 8.3 FPM + Nginx)
 
-You may also try the [Laravel Bootcamp](https://bootcamp.laravel.com), where you will be guided through building a modern Laravel application from scratch.
+---
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Local Setup & Installation
 
-## Laravel Sponsors
+### Prerequisites
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+- PHP 8.2+ with `bcmath`, `pdo_sqlite`, `mbstring`, `xml`, `curl`, `zip`, `intl` extensions
+- Composer 2.x
+- Node.js 20+ & npm
 
-### Premium Partners
+### Steps
 
-- **[Vehikl](https://vehikl.com/)**
-- **[Tighten Co.](https://tighten.co)**
-- **[WebReinvent](https://webreinvent.com/)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel/)**
-- **[Cyber-Duck](https://cyber-duck.co.uk)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Jump24](https://jump24.co.uk)**
-- **[Redberry](https://redberry.international/laravel/)**
-- **[Active Logic](https://activelogic.com)**
-- **[byte5](https://byte5.de)**
-- **[OP.GG](https://op.gg)**
+```bash
+# 1. Clone the repository
+git clone https://github.com/amirrdn/ai-image-studio.git
+cd ai-image-studio
 
-## Contributing
+# 2. Install PHP and JavaScript dependencies
+composer install
+npm install
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+# 3. Configure environment
+cp .env.example .env
+php artisan key:generate
 
-## Code of Conduct
+# 4. Prepare SQLite database and run migrations
+touch database/database.sqlite
+php artisan migrate
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+# 5. Build frontend assets (or run `npm run dev` for HMR)
+npm run build
 
-## Security Vulnerabilities
+# 6. Start the application server
+php artisan serve
+```
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+If you configure asynchronous queue workers (`QUEUE_CONNECTION=database`), also run:
 
-## License
+```bash
+php artisan queue:work
+```
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+For local development with Vite hot-reload, run `npm run dev` alongside `php artisan serve` (or use `composer run dev`).
+
+### Production Docker Deployment
+
+A multi-stage `Dockerfile` (with `docker/nginx.conf` and `docker/entrypoint.sh`) is included for platforms such as Render, Railway, or Fly.io. On startup, the container prepares `database/database.sqlite`, runs `php artisan migrate --force`, caches configuration/routes/views, and serves the app over `${PORT:-8080}`.
+
+```bash
+docker build -t pixelforge-studio .
+docker run -p 8080:8080 \
+  -e APP_KEY="base64:..." \
+  -e PIXELFORGE_BASE_URL="https://pixelforge.promptedit.dev" \
+  -e PIXELFORGE_API_KEY="your_api_key" \
+  -e PIXELFORGE_WEBHOOK_SECRET="whsec_your_secret" \
+  pixelforge-studio
+```
+
+---
+
+## Environment Variables Reference
+
+| Variable | Default / Example | Description |
+| --- | --- | --- |
+| `APP_NAME` | `Laravel` | Application name displayed in titles |
+| `APP_URL` | `http://localhost` | Public base URL of the application |
+| `DB_CONNECTION` | `sqlite` | Database driver (`sqlite`, `mysql`, `pgsql`) |
+| `DB_DATABASE` | `database/database.sqlite` | Path to SQLite file or database name |
+| `PIXELFORGE_BASE_URL` | `https://pixelforge.promptedit.dev` | Base URL for Pixelforge REST API |
+| `PIXELFORGE_API_KEY` | *(required)* | Bearer API key for Pixelforge endpoints |
+| `PIXELFORGE_WEBHOOK_SECRET` | *(required)* | Signing secret (`whsec_...`) for `Pixelforge-Signature` verification |
+
+---
+
+## Running Tests
+
+Run the full PHPUnit unit and feature test suite (covers BCMath pricing & markup calculations, Pixelforge API error handling, webhook HMAC/replay/idempotency/out-of-order/race-condition flows, balance blocking, and admin reconciliation):
+
+```bash
+php artisan test
+```
