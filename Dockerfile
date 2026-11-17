@@ -1,51 +1,53 @@
-# syntax=docker/dockerfile:1
-
-# Stage 1: Install PHP production dependencies
-FROM composer:2 AS vendor
+# Stage 1: Build Frontend Assets (Node + Vite)
+FROM node:20-alpine AS frontend
 WORKDIR /app
-
-ENV COMPOSER_NO_SECURITY_BLOCKING=1
-
-COPY composer.json composer.lock ./
-RUN composer install \
-    --no-dev \
-    --no-interaction \
-    --prefer-dist \
-    --optimize-autoloader \
-    --no-scripts
-
-# Stage 2: Build Vite + Vue 3 + Tailwind CSS assets
-FROM node:20-alpine AS assets
-WORKDIR /app
-
 COPY package.json package-lock.json ./
 RUN npm ci
-
-COPY vite.config.js tailwind.config.js postcss.config.js ./
-COPY resources/ ./resources/
+COPY resources ./resources
+COPY public ./public
+COPY vite.config.js tailwind.config.js postcss.config.js jsconfig.json ./
 RUN npm run build
 
-# Stage 3: Production PHP-FPM + Nginx runtime
-FROM php:8.3-fpm-alpine AS production
+# Stage 2: Production PHP 8.3 FPM + Nginx + Composer
+FROM php:8.3-fpm-alpine
 
-RUN apk add --no-cache nginx sqlite sqlite-libs
+RUN apk add --no-cache \
+    nginx \
+    sqlite \
+    sqlite-dev \
+    libzip-dev \
+    icu-dev \
+    oniguruma-dev \
+    libxml2-dev \
+    curl \
+    zip \
+    unzip \
+    bash \
+    && docker-php-ext-install \
+    bcmath \
+    pdo_sqlite \
+    mbstring \
+    xml \
+    zip \
+    intl \
+    opcache
 
-COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
-RUN install-php-extensions bcmath pdo_sqlite mbstring xml intl zip opcache
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-COPY . .
-COPY --from=vendor /app/vendor ./vendor
-COPY --from=assets /app/public/build ./public/build
+COPY composer.json composer.lock ./
+RUN composer install --no-dev --optimize-autoloader --no-interaction --no-scripts
 
-RUN mkdir -p /etc/nginx/templates /run/nginx \
-    && cp docker/nginx.conf /etc/nginx/templates/default.conf.template \
-    && chmod +x /var/www/html/docker/entrypoint.sh \
-    && php artisan package:discover --ansi \
-    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
+COPY . .
+COPY --from=frontend /app/public/build ./public/build
+
+COPY docker/nginx.conf /etc/nginx/http.d/default.conf
+COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh \
+    && mkdir -p storage/framework/{sessions,views,cache} storage/logs bootstrap/cache database \
+    && chown -R www-data:www-data storage bootstrap/cache database
 
 EXPOSE 8080
 
-ENTRYPOINT ["/var/www/html/docker/entrypoint.sh"]
-
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
