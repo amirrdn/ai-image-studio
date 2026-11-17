@@ -4,6 +4,16 @@ A full-stack AI image generation workspace built with **Laravel 11**, **Vue 3**,
 
 ---
 
+## Live Deployment
+
+- **Production URL**: https://ai-image-studio-4add5.containers.snapdeploy.app
+
+> **Reviewer Notes:**
+> - Every newly registered user automatically starts with **$10.00** in free studio credits (`credit_balance = 10.000000000`) and can top up additional simulated credits anytime via **Buy Credits**.
+> - The **first registered account** is automatically granted administrator privileges (`is_admin = true`), unlocking access to the Operator Financial & Reconciliation Report at `/admin/report`.
+
+---
+
 ## Key Features
 
 - **Real-Time Token & Cost Estimation**: Debounced live pricing preview via `POST /generations/estimate` using cached rates from `GET /v1/pricing` (5-minute TTL with documented fallback rates), supporting `low`, `medium`, and `high` quality tiers with a transparent **25% service markup** and reasoning token ranges.
